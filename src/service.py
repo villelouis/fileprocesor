@@ -1,8 +1,9 @@
 import os.path
 import time
 from concurrent.futures import as_completed, wait, ThreadPoolExecutor, _base
+from typing import Callable
 
-import converters, utils, model, archivers, stages, settings
+from src import converters, utils, model, archivers, stages, settings
 
 
 def generate_and_zip_files(
@@ -12,7 +13,8 @@ def generate_and_zip_files(
         archive_count: int = 50,
         archive_file_count: int = 100,
         converter: converters.Converter = converters.XMLConverter(),
-        archiver: archivers.Archiver = archivers.ZipArchiver()
+        archiver: archivers.Archiver = archivers.ZipArchiver(),
+        random_root_dto_func: Callable[[], model.RootDTO] = utils.get_random_object_dto
 ):
     os.makedirs(folder_path, exist_ok=True)
 
@@ -20,7 +22,7 @@ def generate_and_zip_files(
     futures = []
 
     for _ in range(archive_count * archive_file_count):
-        futures.append(pool_executor.submit(converter.dumps, utils.get_random_object_dto()))
+        futures.append(pool_executor.submit(converter.dumps, random_root_dto_func()))
 
     for i, future in enumerate(as_completed(futures)):
 
@@ -65,7 +67,10 @@ def unzip_and_write_to_files(
     stages.stage_time_wrapper(output_stage, root_dto_futures)
 
 
-def start_pipeline(max_workers=None):
+def csv_generator_service(
+        max_workers=None,
+        random_root_dto_func: Callable[[], model.RootDTO] = utils.get_random_object_dto
+):
     start = time.time()
     output_folder = settings.OUTPUT_FOLDER
     with ThreadPoolExecutor(max_workers=max_workers) as tpe:
@@ -74,6 +79,7 @@ def start_pipeline(max_workers=None):
             archive_count=settings.ARCHIVE_COUNT,
             archive_file_count=settings.PER_ARCHIVE_FILE_COUNT,
             pool_executor=tpe,
+            random_root_dto_func=random_root_dto_func
         )
         unzip_and_write_to_files(
             output_stage=stages.CSVWithPoolExecutorOutputStage(worker_pool=tpe, folder=output_folder),
@@ -86,4 +92,4 @@ def start_pipeline(max_workers=None):
 
 
 if __name__ == '__main__':
-    start_pipeline()
+    csv_generator_service()

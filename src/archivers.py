@@ -2,7 +2,7 @@ import abc
 from typing import List
 from zipfile import ZIP_DEFLATED, ZipFile
 
-import model
+from src import model
 
 
 class Archiver(abc.ABC):

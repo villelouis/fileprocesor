@@ -1,9 +1,7 @@
 import abc
 import xml.etree.ElementTree as ET
 
-import errors
-import model
-import utils
+from src import errors, model, utils
 
 
 class Converter(abc.ABC):

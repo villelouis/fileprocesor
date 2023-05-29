@@ -28,4 +28,4 @@
 то в наихудшем сценарии в памяти будет: 0.7 Kb * 50 zip * 100 xml-файлов ~= 3.5 Mb
 
 ### Запуск
-python3 src/main.py 
+python3 main.py 

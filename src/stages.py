@@ -5,7 +5,7 @@ import time
 from concurrent.futures import as_completed, Future, wait, _base
 from typing import List, Optional
 
-import model
+from src import model, settings
 
 
 class Stage(abc.ABC):
@@ -28,8 +28,8 @@ class WithPoolExecutor:
 
 
 class OutputStage(Stage, WithPoolExecutor, FileWriter, abc.ABC):
-    def __init__(self, worker_pool, folder: str, id_level_file_name: str = 'id_level.csv',
-                 id_object_file_name: str = 'id_object_name.csv'):
+    def __init__(self, worker_pool, folder: str, id_level_file_name: str = settings.ID_LEVEL_CSV_NAME,
+                 id_object_file_name: str = settings.ID_OBJECT_NAME_CSV_NAME):
         super().__init__(worker_pool=worker_pool)
         self.folder = folder
         self.id_level_file_name = id_level_file_name
