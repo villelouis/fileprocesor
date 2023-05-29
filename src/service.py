@@ -1,6 +1,5 @@
 import os.path
-import time
-from concurrent.futures import as_completed, wait, ThreadPoolExecutor, _base
+from concurrent.futures import as_completed, ThreadPoolExecutor, Executor, ProcessPoolExecutor
 from typing import Callable
 
 from src import converters, utils, model, archivers, stages, settings
@@ -9,7 +8,6 @@ from src import converters, utils, model, archivers, stages, settings
 @utils.timed
 def generate_and_zip_files(
         *,
-        pool_executor: _base.Executor,
         folder_path: str = './temp',
         archive_count: int = 50,
         archive_file_count: int = 100,
@@ -17,20 +15,17 @@ def generate_and_zip_files(
         archiver: archivers.Archiver = archivers.ZipArchiver(),
         random_root_dto_func: Callable[[], model.RootDTO] = utils.get_random_object_dto
 ):
-    start = time.time()
-    os.makedirs(folder_path, exist_ok=True)
-
     chunks_to_archive = [[]]
-    futures = []
+    root_dto_list = []
 
     for _ in range(archive_count * archive_file_count):
-        futures.append(pool_executor.submit(converter.dumps, random_root_dto_func()))
+        root_dto_list.append(converter.dumps(random_root_dto_func()))
 
-    for i, future in enumerate(as_completed(futures)):
+    for i, root_dto in enumerate(root_dto_list):
 
         path_with_data = model.FileNameWithData(
             file_name=f'{i + 1}.{converter.EXTENSION}',
-            data=future.result()
+            data=root_dto
         )
 
         last_chunk = chunks_to_archive[-1]
@@ -39,18 +34,19 @@ def generate_and_zip_files(
         else:
             chunks_to_archive.append([path_with_data])
 
-    futures = []
-    for i, chunk in enumerate(chunks_to_archive):
-        futures.append(pool_executor.submit(archiver.zip, os.path.join(folder_path, f'{i + 1}'), chunk))
-    wait(futures)
-    end = time.time() - start
+    with ProcessPoolExecutor() as pool:
+        pool.map(
+            archiver.zip,
+            [os.path.join(folder_path, f'{i + 1}') for i in range(len(chunks_to_archive))],
+            [chunk for chunk in chunks_to_archive]
+        )
 
 
 @utils.timed
 def unzip_and_write_to_files(
         *,
         output_stage: stages.OutputStage,
-        pool_executor: _base.Executor,
+        pool_executor: Executor,
         input_folder: str = './temp',
         output_folder: str = './results',
         input_converter: converters.Converter = converters.XMLConverter(),
@@ -73,19 +69,21 @@ def unzip_and_write_to_files(
 
 @utils.timed
 def csv_generator_service(
-        max_workers=None,
+        max_workers=settings.MAX_WORKERS,
         random_root_dto_func: Callable[[], model.RootDTO] = utils.get_random_object_dto
 ):
     output_folder = settings.OUTPUT_FOLDER
-    with ThreadPoolExecutor(max_workers=max_workers) as tpe:
-        generate_and_zip_files(
-            folder_path=settings.ZIP_FOLDER,
-            archive_count=settings.ARCHIVE_COUNT,
-            archive_file_count=settings.PER_ARCHIVE_FILE_COUNT,
-            pool_executor=tpe,
-            random_root_dto_func=random_root_dto_func
-        )
 
+    os.makedirs(settings.ZIP_FOLDER, exist_ok=True)
+
+    generate_and_zip_files(
+        folder_path=settings.ZIP_FOLDER,
+        archive_count=settings.ARCHIVE_COUNT,
+        archive_file_count=settings.PER_ARCHIVE_FILE_COUNT,
+        random_root_dto_func=random_root_dto_func
+    )
+
+    with ThreadPoolExecutor(max_workers=max_workers) as tpe:
         unzip_and_write_to_files(
             output_stage=stages.CSVWithPoolExecutorOutputStage(worker_pool=tpe, folder=output_folder),
             pool_executor=tpe,

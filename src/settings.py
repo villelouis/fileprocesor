@@ -10,6 +10,8 @@ ID_OBJECT_NAME_CSV_NAME: str = 'id_object_name.csv'
 LOG_LEVEL = 'INFO'
 APP_NAME = 'random csv exporter'
 
+MAX_WORKERS = 1
+
 
 def init_settings(**kwargs):
     """
