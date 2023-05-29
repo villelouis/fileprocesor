@@ -6,6 +6,7 @@ from typing import Callable
 from src import converters, utils, model, archivers, stages, settings
 
 
+@utils.timed
 def generate_and_zip_files(
         *,
         pool_executor: _base.Executor,
@@ -16,6 +17,7 @@ def generate_and_zip_files(
         archiver: archivers.Archiver = archivers.ZipArchiver(),
         random_root_dto_func: Callable[[], model.RootDTO] = utils.get_random_object_dto
 ):
+    start = time.time()
     os.makedirs(folder_path, exist_ok=True)
 
     chunks_to_archive = [[]]
@@ -41,8 +43,10 @@ def generate_and_zip_files(
     for i, chunk in enumerate(chunks_to_archive):
         futures.append(pool_executor.submit(archiver.zip, os.path.join(folder_path, f'{i + 1}'), chunk))
     wait(futures)
+    end = time.time() - start
 
 
+@utils.timed
 def unzip_and_write_to_files(
         *,
         output_stage: stages.OutputStage,
@@ -64,14 +68,14 @@ def unzip_and_write_to_files(
         root_dto_futures.extend(
             (pool_executor.submit(input_converter.loads, xml_str) for xml_str in xml_str_list))
 
-    stages.stage_time_wrapper(output_stage, root_dto_futures)
+    output_stage.run(root_dto_futures)
 
 
+@utils.timed
 def csv_generator_service(
         max_workers=None,
         random_root_dto_func: Callable[[], model.RootDTO] = utils.get_random_object_dto
 ):
-    start = time.time()
     output_folder = settings.OUTPUT_FOLDER
     with ThreadPoolExecutor(max_workers=max_workers) as tpe:
         generate_and_zip_files(
@@ -81,14 +85,13 @@ def csv_generator_service(
             pool_executor=tpe,
             random_root_dto_func=random_root_dto_func
         )
+
         unzip_and_write_to_files(
             output_stage=stages.CSVWithPoolExecutorOutputStage(worker_pool=tpe, folder=output_folder),
             pool_executor=tpe,
             input_folder=settings.ZIP_FOLDER,
             output_folder=output_folder
         )
-    end = time.time()
-    print(f'successful complete pipeline consumed {end - start} sec')
 
 
 if __name__ == '__main__':

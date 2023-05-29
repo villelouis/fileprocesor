@@ -1,7 +1,6 @@
 import abc
 import csv
 import os
-import time
 from concurrent.futures import as_completed, Future, wait, _base
 from typing import List, Optional
 
@@ -59,10 +58,3 @@ class CSVWithPoolExecutorOutputStage(OutputStage):
         ]
 
         wait(futures)
-
-
-def stage_time_wrapper(stage: Stage, root_dto_futures):
-    start = time.time()
-    stage.run(root_dto_futures)
-    end = time.time() - start
-    print(f"Stage {stage.__class__.__name__} completed! Consumed {end} sec")

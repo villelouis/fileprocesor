@@ -7,6 +7,9 @@ OUTPUT_FOLDER: str = 'output'
 ID_LEVEL_CSV_NAME: str = 'id_level.csv'
 ID_OBJECT_NAME_CSV_NAME: str = 'id_object_name.csv'
 
+LOG_LEVEL = 'INFO'
+APP_NAME = 'random csv exporter'
+
 
 def init_settings(**kwargs):
     """
